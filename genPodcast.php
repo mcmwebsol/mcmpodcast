@@ -1,12 +1,10 @@
-<?php
-
-// change all mysql functions to PDO!!!
-// use left joins where appropriate!!
-// need to fix magic quotes issue!!!
+<?php                               
+// need to fix magic quotes issue(s)!!!
 // password-protect the admin directory!!!!!!!!!!
 // sql file for installing DB
 
 include 'db.php';
+include 'admin/functions.php';
 
 // config - FILL THESE VALUES IN - IF IN DOUBT READ THE ITUNES PODCAST DOCUMENTATION
 $title = encodeForPodcast('');
@@ -31,52 +29,12 @@ function encodeForPodcast($text) {
 }
 
 
-function getSermonsFromDB() {
-
-  $qs = "SELECT s.id, 
-                s.title,
-                s.myDate,
-                s.chapterStart,
-                s.verseStart,
-                s.chapterEnd,
-                s.verseEnd,
-                s.description,
-                s.audioFile,                
-                a.firstName,
-                a.lastName,
-                b.name as bookOfBibleName
-         FROM Sermon s,
-              Author a,
-              Book_Of_Bible b           
-         WHERE s.authorID=a.id AND
-               s.bookOfBibleID=b.id                   
-         ORDER BY myDate DESC"; 
-  $rs = mysql_query($qs); CHANGE
-  $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) { CHANGE
-    $ret[] = $row;
-  }       
-  
-  return $ret;
-
-}
-
-
-
 
 
 // cache, updates only daily
-$output = '';
-$oneDay = 24*60*60;
-$now = date('Y-m-d H:i:s', time() - $oneDay );
-$qs = "SELECT value
-       FROM Podcast_Cache
-       WHERE modDateTime > '".mysql_real_escape_string($now)."'";   CHANGE
-$rs = mysql_query($qs);
-if ( mysql_num_rows($rs) ) {
-   list($output) = mysql_fetch_row($rs);
-}
-else { 
+$output = getCache();
+
+if ( !strlen($output) ) {
    
   $filenames = getSermonsFromDB();
   
@@ -202,10 +160,7 @@ else {
   </channel>
   </rss>';
 
-  $u_qs = "UPDATE Podcast_Cache
-           SET value='".mysql_real_escape_string($output)."',
-               modDateTime='".date('Y-m-d H:i:s')."'";
-  mysql_query($u_qs); CHANGE
+  setCache($output);
  
 }
 

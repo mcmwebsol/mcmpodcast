@@ -1,6 +1,227 @@
 <?php
+// use left joins where appropriate!!
 
-CHANGE ALL TO USE PDO INSTEAD OF mysql FUNCTIONS
+function mcmRawSelectQuery($qs) {
+
+  global $dbh;
+
+  $rows = false;
+
+  try {
+  
+    $stmt = $dbh->prepare($qs);
+       
+    $stmt->execute();
+    
+    $rows = $stmt->fetchAll();
+  
+  }
+  catch (PDOException $e) {
+    print " Error! in query ";
+    /* 
+    print " qs=$qs "; // debug - remove!!!!!!!!!!
+      
+    print $e->getMessage();
+    print $e->getTraceAsString(); 
+     */
+  }
+  
+  return $rows;
+
+}
+
+
+function mcmParamSelectQuery($qs, $data, $fields) {
+
+  global $dbh;
+
+  $rows = false;
+
+  try {
+  
+    $stmt = $dbh->prepare($qs);
+    
+    foreach ($fields as $f) {
+       $val = '';
+       if ( isset($data[$f]) )
+         $val = $data[$f];
+       $stmt->bindValue(':'.$f, $val);
+     }
+     reset($fields);
+       
+    $stmt->execute();
+    
+    $rows = $stmt->fetchAll();
+  
+  }
+  catch (PDOException $e) {
+    print " Error! in query ";
+    /* 
+    print " qs=$qs "; // debug - remove!!!!!!!!!!
+      
+    print $e->getMessage();
+    print $e->getTraceAsString(); 
+     */
+  }
+  
+  return $rows;
+
+}
+
+function runUpdate($data, $fields, $tableName, $id) {
+   
+   global $dbh;
+   
+   $fieldsClause = array();
+   foreach ($fields as $f) {
+     $fieldsClause[] = '`'.$f.'`=:'.$f;
+   }
+   reset($fields);
+   $fieldsClause = implode(',', $fieldsClause);
+   
+   try {
+     $stmt = $dbh->prepare("UPDATE ".$tableName."
+                            SET $fieldsClause
+                            WHERE id=:id");
+     
+     foreach ($fields as $f) {
+       $stmt->bindValue(':'.$f, $data[$f]);
+     }
+     reset($fields);
+     
+     $stmt->bindValue(':id', $id);
+     
+     $stmt->execute();
+   }
+   catch (PDOException $e) {
+    print " Error! in run update ";
+   }
+   return;
+          
+}    
+
+function runDelete($tableName, $id) {
+   
+   global $dbh;
+      
+   
+   try {
+     $stmt = $dbh->prepare("DELETE ".$tableName."
+                            FROM $fieldsClause
+                            WHERE id=:id");                  
+         
+     $stmt->execute();
+   }
+   catch (PDOException $e) {
+    print " Error! in run delete ";
+   }
+   return;
+          
+}  
+
+
+/**
+* returns insert id if succesful
+*/       
+function runInsert($data, $fields, $tableName) {
+
+ global $dbh;
+ 
+ $fieldsClause = array();
+ $fieldNames = array();
+ foreach ($fields as $f) {
+   $fieldsClause[] = ':'.$f;
+   $fieldNames[] = '`'.$f.'`';
+ }
+ reset($fields);
+ $fieldsClause = implode(',', $fieldsClause);
+ 
+ try {
+   $qs = "INSERT INTO ".$tableName." (".implode(', ', $fieldNames).")
+          VALUES ($fieldsClause)";
+   $stmt = $dbh->prepare($qs);
+   
+   foreach ($fields as $f) {
+     $val = '';
+     if ( isset($data[$f]) )
+       $val = $data[$f];
+     $stmt->bindValue(':'.$f, $val);
+   }
+   reset($fields);
+   
+   $stmt->execute();
+   
+   $id = $dbh->lastInsertId();
+   
+   return $id;
+   
+ }
+ catch (PDOException $e) {
+  print " Error! in run insert ";
+  /* 
+  print " qs=$qs "; // debug - remove!!!!!!!!!!
+  
+  print $e->getMessage();
+  print $e->getTraceAsString(); 
+   */
+ }
+ 
+ return false;
+ 
+ 
+}
+
+function getSermonsFromDB() {
+
+  $qs = "SELECT s.id, 
+                s.title,
+                s.myDate,
+                s.chapterStart,
+                s.verseStart,
+                s.chapterEnd,
+                s.verseEnd,
+                s.description,
+                s.audioFile,                
+                a.firstName,
+                a.lastName,
+                b.name as bookOfBibleName
+         FROM Sermon s,
+              Author a,
+              Book_Of_Bible b           
+         WHERE s.authorID=a.id AND
+               s.bookOfBibleID=b.id                   
+         ORDER BY myDate DESC"; 
+  $ret = mcmRawSelectQuery($qs);
+  
+  return $ret;
+
+}
+
+function getCache() {
+  $oneDay = 24*60*60;
+  $oneDayAgo = date('Y-m-d H:i:s', time() - $oneDay );
+  $qs = "SELECT value
+         FROM Podcast_Cache
+         WHERE modDateTime > :modDateTime";
+  $data = array('modDateTime'=>$oneDayAgo);       
+  $rows = mcmParamSelectQuery($qs, $data, array('modDateTime') );  
+  
+  $output = '';
+  
+  if ( count($rows) ) {
+    $output = $rows[0];
+  }
+  
+  return $output;
+}
+
+function setCache($ouput) {  
+  $fields = array('value', 
+                  'modDateTime');
+  $data = array('value'=>$output,
+                'modDateTime'=>date('Y-m-d H:i:s'));
+  runUpdate($data, $fields, 'Podcast_Cache', 1);         
+}
 
 function mySqlToUSDate($dateStr) {
 
@@ -15,10 +236,10 @@ function mySqlToUSDate($dateStr) {
 
 function clearPodcastCache() {
 
-  // set modDateTime to 2 days ago, this will force the cache to be regenerated the next time genPodcast.php is called as the cache exp is 1 day
-  $u_qs = "UPDATE Podcast_Cache
-           SET modDateTime='".mysql_real_escape_string( date('Y-m-d H:i:s', strtotime("-2 day") ) )."'";
-  mysql_query($u_qs); 
+  // set modDateTime to 2 days ago, this will force the cache to be regenerated the next time genPodcast.php is called as the cache exp is 1 day  
+  $fields = array('modDateTime');
+  $data = array('modDateTime'=>date('Y-m-d H:i:s', strtotime("-2 day") ));
+  runUpdate($data, $fields, 'Podcast_Cache', 1);  
 
 }
 
@@ -50,9 +271,9 @@ function getAllSeries() {
   $qs = "SELECT id, name
          FROM Series
          ORDER BY name";
-  $rs = mysql_query($qs);
+  $rows = mcmRawSelectQuery($qs);    
   $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
+  foreach ($rows as $row) {
     $ret[$row['id']] = $row['name'];
   }       
 
@@ -62,9 +283,9 @@ function getAllSeries() {
 
 function createSeries() {
 
-  $qs = "INSERT INTO Series (name)
-         VALUES ('".mysql_real_escape_string($_POST['name'])."')";
-  mysql_query($qs);
+  $data = array('name');
+  $fields = array('name'=>$_POST['name']);
+  runInsert($data, $fields, 'Series');      
   
   return array();
 
@@ -72,9 +293,7 @@ function createSeries() {
 
 function deleteSeries($id) {
 
-  $qs = "DELETE FROM Series
-         WHERE id=".intval($id);
-  mysql_query($qs);
+  runDelete('Series', $id);
 
 }
 
@@ -82,20 +301,22 @@ function getSeries($id) {
 
   $qs = "SELECT name
          FROM Series
-         WHERE id=".intval($id);
-  $rs = mysql_query($qs);
-  $row = mysql_fetch_assoc($rs);
+         WHERE id:id";
+  $data = array('id'=>$id);
+  $row = array();
+  $rows = mcmParamSelectQuery($qs, $data, array('id') );  
+  if ( count($rows) )
+    $row = $rows[0];
 
   return $row;
 
 }
 
-function saveSeries($data) {
+function saveSeries($dataIn) {
 
-  $qs = "UPDATE Series
-         SET name='".mysql_real_escape_string($data['name'])."'        
-         WHERE id=".intval($data['id']);
-  mysql_query($qs);
+  $fields = array('name');
+  $data = array('name'=>$dataIn['name']);      
+  runUpdate($data, $fields, 'Series', $dataIn['id']);
 
 }
 
@@ -105,9 +326,11 @@ function getAuthors() {
   $qs = "SELECT id, firstName, lastName
          FROM Author
          ORDER BY lastName, firstName";
-  $rs = mysql_query($qs);
+        
+  $rows = mcmRawSelectQuery($qs);  
+  
   $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
+  foreach ($rows as $row) {
     $ret[$row['id']] = $row['lastName'].', '.$row['firstName'];
   }       
 
@@ -119,9 +342,13 @@ function createAuthor() {
 
   $qs = "INSERT INTO Author (firstName, 
                              lastName)
-         VALUES ('".mysql_real_escape_string($_POST['firstName'])."', 	
-                 '".mysql_real_escape_string($_POST['lastName'])."')";
-  mysql_query($qs);
+         VALUES (:firstName, 	
+                 :lastName)";
+  $data = array('firstName'=>$_POST['firstName'], 
+                'lastName'=>$_POST['lastName']);
+  $fields = array('firstName', 
+                  'lastName');
+  runInsert($data, $fields, 'Author');
   
   return array();
 
@@ -129,9 +356,7 @@ function createAuthor() {
 
 function deleteAuthor($id) {
 
-  $qs = "DELETE FROM Author
-         WHERE id=".intval($id);
-  mysql_query($qs);
+  runDelete('Author', $id);
 
 }
 
@@ -139,21 +364,25 @@ function getAuthor($id) {
 
   $qs = "SELECT firstName, lastName
          FROM Author
-         WHERE id=".intval($id);
-  $rs = mysql_query($qs);
-  $row = mysql_fetch_assoc($rs);
+         WHERE id=:id";
+  
+  $data = array('id'=>$id);
+  $row = array();
+  $rows = mcmParamSelectQuery($qs, $data, array('id') );  
+  if ( count($rows) )
+    $row = $rows[0];
 
   return $row;
 
 }
 
-function saveAuthor($data) {
+function saveAuthor($dataIn) {
 
-  $qs = "UPDATE Author
-         SET firstName='".mysql_real_escape_string($data['firstName'])."', 
-             lastName='".mysql_real_escape_string($data['lastName'])."'         
-         WHERE id=".intval($data['id']);
-  mysql_query($qs);
+  $fields = array('firstName',
+                  'lastName');
+  $data = array('firstName'=>$dataIn['firstName'],
+                'lastName'=>$dataIn['lastName']);      
+  runUpdate($data, $fields, 'Author', $dataIn['id']);
 
 }
 
@@ -163,9 +392,9 @@ function getBooksOfBible() {
   $qs = "SELECT id, name
          FROM Book_Of_Bible
          ORDER BY name";
-  $rs = mysql_query($qs);
+  $rows = mcmRawSelectQuery($qs);
   $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
+  foreach ($rows as $row) {
     $ret[$row['id']] = $row['name'];
   }       
 
@@ -173,84 +402,15 @@ function getBooksOfBible() {
   
 }
 
-function getSermonsFrontSide($year='',$filters=array(),$sort='',$date='',$title='') {
-
-  $qs = "SELECT title, 
-                myDate, 
-                chapterStart, 
-                verseStart, 
-                chapterEnd, 
-                verseEnd, 
-                description, 
-                audioFile, 
-                manuscriptFile,
-                a.firstName,
-                a.lastName,
-                b.name as bookOfBible,
-                se.name as series 
-         FROM Sermon s,
-              Book_Of_Bible b,
-              Author a,
-              Series se
-         WHERE ";  
-  
-  $usedFilters = array();
-  $ct = 0;
-  
-  if ($year != '') {      
-    $qs .= " myDate LIKE '".intval($year)."-%'\n"; 
-    $ct++;
-  }
-  else if ( count($filters) ) {
-              
-    foreach ($filters as $k=>$v) {
-      if ($ct > 0)  
-        $qs .= " AND ";
-        
-      $qs .= $k."=".intval($v)."\n";  
-      $usedFilters[] = $k;
-      $ct++;
-    }
-  
-  }
-  
-  // JOINs for author, book of Bible, and series
-  $joins = array('authorID'=>'a.id', 'bookOfBibleID'=>'b.id', 'seriesID'=>'se.id');
-  foreach ($joins as $joinFK=>$joinKey) {
-    //if ( !in_array($joinFK, $usedFilters) ) { 
-      if ($ct > 0)  
-        $qs .= " AND ";
-      $qs .= "$joinFK=$joinKey";
-      $ct++;
-    //}
-  }
-  
-  if ($sort == '')
-    $qs .= "\nORDER BY myDate DESC"; 
-  else {
-    $qs .= "\nORDER BY "; // FILL IN!!!
-  }  
-  
-  //print " qs=$qs ";
-    
-  $rs = mysql_query($qs);
-  $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
-    $ret[] = $row;
-  }       
-
-  return $ret;  
-
-}
 
 function getSermons() {
 
   $qs = "SELECT id, title, myDate
          FROM Sermon
          ORDER BY myDate DESC";
-  $rs = mysql_query($qs);
+  $rows = mcmRawSelectQuery($qs);
   $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
+  foreach ($rows as $row) {
     $ret[$row['id']] = $row['myDate'].' - '.$row['title'];
   }       
 
@@ -260,29 +420,38 @@ function getSermons() {
 
 function deleteSermon($id) {
 
-  $qs = "DELETE FROM Sermon
-         WHERE id=".intval($id);
-  mysql_query($qs);
+  runDelete('Sermon', $id);
 
 }
 
-function saveSermon($data) {
-
-  $qs = "UPDATE Sermon
-         SET title='".mysql_real_escape_string(stripslashes($data['title']))."',
-             authorID=".intval(stripslashes($data['authorID'])).", 
-             bookOfBibleID=".intval(stripslashes($data['bookOfBibleID'])).", 
-             myDate='".mysql_real_escape_string(stripslashes($data['myDate']))."', 
-             chapterStart=".intval(stripslashes($data['chapterStart'])).",
-             verseStart=".intval(stripslashes($data['verseStart'])).",
-             chapterEnd=".intval(stripslashes($data['chapterEnd'])).",
-             verseEnd=".intval(stripslashes($data['verseEnd'])).",
-             description='".mysql_real_escape_string(stripslashes($data['description']))."',
-             audioFile='".mysql_real_escape_string(stripslashes($data['audioFile']))."', 	
-             manuscriptFile='".mysql_real_escape_string(stripslashes($data['manuscriptFile']))."',
-             seriesID=".intval(stripslashes($data['seriesID']))."       
-         WHERE id=".intval(stripslashes($data['id']));
-  mysql_query($qs);
+function saveSermon($dataIn) {
+  
+  $fields = array( 'title',
+                   'authorID',
+                   'bookOfBibleID',
+                   'myDate', 
+                   'chapterStart',
+                   'verseStart',
+                   'chapterEnd',
+                   'verseEnd',
+                   'description',
+                   'audioFile', 	
+                   'manuscriptFile',
+                   'seriesID'
+                  );
+  $data = array(   'title'=> $dataIn['title'],
+                   'authorID'=> $dataIn['authorID'],
+                   'bookOfBibleID'=> $dataIn['bookOfBibleID'],
+                   'myDate'=> $dataIn['myDate'], 
+                   'chapterStart'=> $dataIn['chapterStart'],
+                   'verseStart'=> $dataIn['verseStart'],
+                   'chapterEnd'=> $dataIn['chapterEnd'],
+                   'verseEnd'=> $dataIn['verseEnd'],
+                   'description'=> $dataIn['description'],
+                   'audioFile'=> $dataIn['audioFile'], 	
+                   'manuscriptFile'=> $dataIn['manuscriptFile'],
+                   'seriesID'=> $dataIn['seriesID']);      
+  runUpdate($data, $fields, 'Sermon', $dataIn['id']);
   
   clearPodcastCache();
 
@@ -303,42 +472,46 @@ function getSermon($id) {
                manuscriptFile,
                seriesID
          FROM Sermon
-         WHERE id=".intval($id);
-  $rs = mysql_query($qs);
-  $row = mysql_fetch_assoc($rs);
+         WHERE id=:id";
+  $data = array('id'=>$id);
+  $row = array();
+  $rows = mcmParamSelectQuery($qs, $data, array('id') );  
+  if ( count($rows) )
+    $row = $rows[0];
 
   return $row;
 
 }
 
 
-function createSermon($arr) {
+function createSermon() {
+  $dataIn = $_POST ;
 
-  $qs = "INSERT INTO Sermon (title, 
-                             authorID, 
-                             bookOfBibleID, 
-                             myDate, 
-                             chapterStart,
-                             verseStart,
-                             chapterEnd,
-                             verseEnd,
-                             description,
-                             audioFile, 	
-                             manuscriptFile,
-                             seriesID)
-         VALUES ('".mysql_real_escape_string($_POST['title'])."', 
-                 ".intval($_POST['authorID']).", 
-                 ".intval($_POST['bookOfBibleID']).", 
-                 '".mysql_real_escape_string($_POST['myDate'])."', 
-                 '".mysql_real_escape_string($_POST['chapterStart'])."',
-                 '".mysql_real_escape_string($_POST['verseStart'])."',
-                 '".mysql_real_escape_string($_POST['chapterEnd'])."',
-                 '".mysql_real_escape_string($_POST['verseEnd'])."',
-                 '".mysql_real_escape_string($_POST['description'])."',
-                 '".mysql_real_escape_string($_POST['audioFile'])."', 	
-                 '".mysql_real_escape_string($_POST['manuscriptFile'])."',
-                 ".intval($_POST['seriesID']).")";
-  mysql_query($qs);
+  $data = array('title' => $dataIn['title'], 
+               'authorID' => $dataIn['authorID'], 
+               'bookOfBibleID' => $dataIn['bookOfBibleID'], 
+               'myDate' => $dataIn['myDate'], 
+               'chapterStart' => $dataIn['chapterStart'],
+               'verseStart' => $dataIn['verseStart'],
+               'chapterEnd' => $dataIn['chapterStart'],
+               'verseEnd' => $dataIn['verseEnd'],
+               'description' => $dataIn['description'],
+               'audioFile' => $dataIn['audioFile'], 	
+               'manuscriptFile' => $dataIn['manuscriptFile'],
+               'seriesID' => $dataIn['seriesID']);
+  $fields = array('title', 
+               'authorID', 
+               'bookOfBibleID', 
+               'myDate', 
+               'chapterStart',
+               'verseStart',
+               'chapterEnd',
+               'verseEnd',
+               'description',
+               'audioFile', 	
+               'manuscriptFile',
+               'seriesID');
+  runInsert($data, $fields, 'Sermon');   
   
   clearPodcastCache();
   
@@ -375,44 +548,5 @@ function isSelected($a, $b) {
     return ' selected="selected"';
     
   return '';  
-}
-
-function searchSermons($keywords) {
-
-  $qs = "SELECT title, 
-                myDate, 
-                chapterStart, 
-                verseStart, 
-                chapterEnd, 
-                verseEnd, 
-                description, 
-                audioFile, 
-                manuscriptFile,
-                a.firstName,
-                a.lastName,
-                b.name as bookOfBible,
-                se.name as series 
-         FROM Sermon s,
-              Book_Of_Bible b,
-              Author a,
-              Series se
-         WHERE (s.title LIKE '%".mysql_real_escape_string($keywords)."%' OR
-                b.name LIKE '%".mysql_real_escape_string($keywords)."%' OR
-                se.name LIKE '%".mysql_real_escape_string($keywords)."%'
-               ) AND 
-               s.bookOfBibleID=b.id AND
-               s.seriesID=se.id AND
-               s.authorID=a.id 
-         ORDER BY myDate DESC";
-         //print " qs=$qs ";
-         
-  $rs = mysql_query($qs);
-  $ret = array();
-  while ( $row = mysql_fetch_assoc($rs) ) {
-    $ret[] = $row;
-  }       
-
-  return $ret;           
-
 }
 ?>
