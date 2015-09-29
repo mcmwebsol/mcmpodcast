@@ -3,7 +3,7 @@
 include 'functions.php';
 
 
-$dir = ( ($_GET['dir'] == 'Word') ? '../Word/' : '../MP3/' );  CHANGE
+$dir = ( ($_GET['dir'] == 'Word') ? '../Word/' : '../MP3/' );
 
 $files = ls($dir);
 
