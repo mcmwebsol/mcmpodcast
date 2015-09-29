@@ -1,0 +1,24 @@
+body {
+  font-family: Verdana;
+  font-size: 12px;
+}
+
+fieldset {
+  width: 250px;
+}
+
+h1 {
+  font-size: 14px;
+  font-weight: bold;
+}
+
+#menu ul, #menu li {
+  display: inline;
+  margin: 0;
+}
+
+#menu li {
+  list-style: none;
+  padding: 5px;
+  border: 1px solid black;
+}
