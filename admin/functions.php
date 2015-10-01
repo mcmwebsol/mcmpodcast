@@ -283,8 +283,8 @@ function getAllSeries() {
 
 function createSeries() {
 
-  $data = array('name');
-  $fields = array('name'=>$_POST['name']);
+  $fields = array('name');
+  $data = array('name'=>$_POST['name']);
   runInsert($data, $fields, 'Series');      
   
   return array();
