@@ -1,7 +1,5 @@
 <?php                               
 // need to fix magic quotes issue(s)!!!
-// password-protect the admin directory!!!!!!!!!!
-// sql file for installing DB
 
 include 'db.php';
 include 'admin/functions.php';
@@ -14,7 +12,7 @@ $subtitle = encodeForPodcast('');
 $author = encodeForPodcast('');
 $authorEmail = encodeForPodcast('');
 $summary = encodeForPodcast(''); // also description
-$image = encodeForPodcast('http://www.clarksvillepca.org/Images/logo_color_1400x1400.jpg'); // absolute URL - e.g. a 1400x1400 image for iTunes
+$image = encodeForPodcast(''); // absolute URL - e.g. a 1400x1400 image for iTunes
 $category = encodeForPodcast('');
 $subCategory = encodeForPodcast('');
 
@@ -39,6 +37,8 @@ if ( !strlen($output) ) {
   $filenames = getSermonsFromDB();
   
   $items = array();
+  
+  //print_r($filenames);
   
   // begin loop
   foreach ($filenames as $filename) {

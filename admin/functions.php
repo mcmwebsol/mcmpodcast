@@ -202,7 +202,7 @@ function getCache() {
   $output = '';
   
   if ( count($rows) ) {
-    $output = $rows[0];
+    $output = $rows[0]['value'];
   }
   
   return $output;
