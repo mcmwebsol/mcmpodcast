@@ -106,14 +106,15 @@ function runDelete($tableName, $id) {
       
    
    try {
-     $stmt = $dbh->prepare("DELETE ".$tableName."
-                            FROM $fieldsClause
+     $stmt = $dbh->prepare("DELETE FROM ".$tableName."
                             WHERE id=:id");                  
-         
+     $stmt->bindValue(':id', $id);    
      $stmt->execute();
    }
    catch (PDOException $e) {
     print " Error! in run delete ";
+    print $e->getMessage();
+    print $e->getTraceAsString();  
    }
    return;
           
