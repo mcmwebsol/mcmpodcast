@@ -55,13 +55,7 @@ function mcmParamSelectQuery($qs, $data, $fields) {
   
   }
   catch (PDOException $e) {
-    print " Error! in query ";
-    /* 
-    print " qs=$qs "; // debug - remove!!!!!!!!!!
-      
-    print $e->getMessage();
-    print $e->getTraceAsString(); 
-     */
+    print " Error! in query ";    
   }
   
   return $rows;
@@ -113,8 +107,6 @@ function runDelete($tableName, $id) {
    }
    catch (PDOException $e) {
     print " Error! in run delete ";
-    print $e->getMessage();
-    print $e->getTraceAsString();  
    }
    return;
           
@@ -302,7 +294,7 @@ function getSeries($id) {
 
   $qs = "SELECT name
          FROM Series
-         WHERE id:id";
+         WHERE id=:id";
   $data = array('id'=>$id);
   $row = array();
   $rows = mcmParamSelectQuery($qs, $data, array('id') );  
